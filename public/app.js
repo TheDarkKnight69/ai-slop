@@ -245,6 +245,10 @@ function sendMessage() {
   const text = messageInput.value.trim();
   
   if (text && ws && ws.readyState === WebSocket.OPEN) {
+    // Display your message immediately
+    addMessage(text, 'you');
+    
+    // Send to server (which forwards to partner)
     ws.send(JSON.stringify({
       type: 'message',
       text: text

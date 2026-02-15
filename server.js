@@ -31,7 +31,7 @@ db.serialize(() => {
 
 // Middleware
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
   secret: 'your-secret-key-change-in-production',
   resave: false,
@@ -169,13 +169,6 @@ wss.on('connection', (ws) => {
             type: 'message',
             text: data.text,
             sender: 'stranger'
-          }));
-          
-          // Echo back to sender
-          ws.send(JSON.stringify({
-            type: 'message',
-            text: data.text,
-            sender: 'you'
           }));
         }
       } else if (data.type === 'disconnect') {
