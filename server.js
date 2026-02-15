@@ -122,6 +122,7 @@ app.get('/api/check-auth', (req, res) => {
 // WebSocket chat logic
 const waitingUsers = [];
 const activeChats = new Map();
+const userConnections = new Map(); // Track username -> websocket connections
 
 wss.on('connection', (ws) => {
   let currentUser = null;
@@ -135,9 +136,27 @@ wss.on('connection', (ws) => {
         currentUser = data.username;
         ws.username = currentUser;
         
-        // Try to match with waiting user
-        if (waitingUsers.length > 0) {
-          const partner = waitingUsers.shift();
+        // Track this connection
+        if (!userConnections.has(currentUser)) {
+          userConnections.set(currentUser, []);
+        }
+        userConnections.get(currentUser).push(ws);
+        
+        // Try to match with waiting user (but not with yourself)
+        let partner = null;
+        let foundPartner = false;
+        
+        while (waitingUsers.length > 0 && !foundPartner) {
+          const potentialPartner = waitingUsers.shift();
+          
+          // Make sure we don't match with ourselves (same username)
+          if (potentialPartner.username !== currentUser) {
+            partner = potentialPartner;
+            foundPartner = true;
+          }
+        }
+        
+        if (foundPartner && partner) {
           chatPartner = partner;
           partner.chatPartner = ws;
           ws.chatPartner = partner;
@@ -193,9 +212,21 @@ wss.on('connection', (ws) => {
         ws.chatPartner = null;
         activeChats.delete(ws);
         
-        // Join waiting pool
-        if (waitingUsers.length > 0) {
-          const partner = waitingUsers.shift();
+        // Join waiting pool - try to match with waiting user (but not yourself)
+        let partner = null;
+        let foundPartner = false;
+        
+        while (waitingUsers.length > 0 && !foundPartner) {
+          const potentialPartner = waitingUsers.shift();
+          
+          // Make sure we don't match with ourselves (same username)
+          if (potentialPartner.username !== currentUser) {
+            partner = potentialPartner;
+            foundPartner = true;
+          }
+        }
+        
+        if (foundPartner && partner) {
           chatPartner = partner;
           partner.chatPartner = ws;
           ws.chatPartner = partner;
@@ -230,6 +261,19 @@ wss.on('connection', (ws) => {
     const index = waitingUsers.indexOf(ws);
     if (index > -1) {
       waitingUsers.splice(index, 1);
+    }
+    
+    // Clean up user connections tracking
+    if (currentUser && userConnections.has(currentUser)) {
+      const connections = userConnections.get(currentUser);
+      const connIndex = connections.indexOf(ws);
+      if (connIndex > -1) {
+        connections.splice(connIndex, 1);
+      }
+      // Remove the user entry if no more connections
+      if (connections.length === 0) {
+        userConnections.delete(currentUser);
+      }
     }
     
     // Notify partner
